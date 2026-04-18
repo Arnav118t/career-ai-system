@@ -213,3 +213,6 @@ def match_skills_with_job(db: Session, user_id: int, job_description: str):
         "missing_skills": list(set(job_skills) - set(user_skills)),
         "text_similarity": round(text_similarity, 2)
     }
+def parse_resume(file):
+    # resume parsing logic
+    return {"skills": []}
