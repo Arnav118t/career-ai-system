@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from datetime import datetime, timedelta
 from app.db import models
 from app.schemas import schemas
@@ -13,15 +13,27 @@ SECRET_KEY = "arnav"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
-def verify_password(plain_password, hashed_password):
-    return pwd_context.verify(plain_password[:72], hashed_password)
+
+def _password_bytes(password: str) -> bytes:
+    return password.encode("utf-8")[:72]
 
 
-def get_password_hash(password):
-    return pwd_context.hash(password[:72])
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    if not plain_password or not hashed_password:
+        return False
+    try:
+        return bcrypt.checkpw(
+            _password_bytes(plain_password),
+            hashed_password.encode("utf-8"),
+        )
+    except (ValueError, TypeError):
+        return False
+
+
+def get_password_hash(password: str) -> str:
+    return bcrypt.hashpw(_password_bytes(password), bcrypt.gensalt()).decode("utf-8")
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -85,14 +97,15 @@ def get_current_user(
 def create_or_update_profile(db: Session, user_id: int, profile_data: schemas.ProfileCreate):
     db_profile = db.query(models.Profile).filter(models.Profile.user_id == user_id).first()
     
+    payload = profile_data.model_dump()
     if db_profile:
         # Update existing profile
-        for key, value in profile_data.dict().items():
+        for key, value in payload.items():
             setattr(db_profile, key, value)
         db_profile.updated_at = datetime.utcnow()
     else:
         # Create new profile
-        db_profile = models.Profile(user_id=user_id, **profile_data.dict())
+        db_profile = models.Profile(user_id=user_id, **payload)
         db.add(db_profile)
     
     db.commit()

@@ -6,7 +6,7 @@ from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import numpy as np
-from features import ALL_FEATURES, TARGET_COLUMN
+from app.ml_training.features import ALL_FEATURES, TARGET_COLUMN
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 dataset_path = os.path.join(BASE_DIR, "dataset.csv")

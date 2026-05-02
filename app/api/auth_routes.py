@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.schemas import schemas
@@ -23,15 +23,7 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     """
     Login and get JWT token
     """
-    token = auth_service.login_user(db, user)
-
-    if not token:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-
-    return {
-        "access_token": token,
-        "token_type": "bearer"
-    }
+    return auth_service.authenticate_user(db, user)
 
 
 # ==================== CURRENT USER ====================

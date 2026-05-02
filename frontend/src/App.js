@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import './App.css';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:8000/api';
+// Dev: CRA `proxy` in package.json forwards /api -> http://localhost:8000
+// Prod build: set REACT_APP_API_URL (e.g. http://localhost:8000/api) when serving the app.
+const API_URL = (process.env.REACT_APP_API_URL || '/api').replace(/\/$/, '');
 
 function App() {
   const [currentView, setCurrentView] = useState('login');
   const [token, setToken] = useState(localStorage.getItem('token'));
-  const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
   const [offers, setOffers] = useState([]);
   const [recommendations, setRecommendations] = useState(null);
@@ -46,7 +47,14 @@ function App() {
       alert('Registration successful! Please login.');
       setCurrentView('login');
     } catch (error) {
-      alert(error.response?.data?.detail || 'Registration failed');
+      const msg = error.response?.data?.detail;
+      alert(
+        typeof msg === 'string'
+          ? msg
+          : Array.isArray(msg)
+            ? msg.map((e) => e.msg || JSON.stringify(e)).join('\n')
+            : error.message || 'Registration failed'
+      );
     }
   };
 
@@ -61,7 +69,14 @@ function App() {
       axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
       setCurrentView('dashboard');
     } catch (error) {
-      alert(error.response?.data?.detail || 'Login failed');
+      const msg = error.response?.data?.detail;
+      alert(
+        typeof msg === 'string'
+          ? msg
+          : Array.isArray(msg)
+            ? msg.map((e) => e.msg || JSON.stringify(e)).join('\n')
+            : error.message || 'Login failed'
+      );
     }
   };
 
@@ -69,7 +84,6 @@ function App() {
     setToken(null);
     localStorage.removeItem('token');
     setCurrentView('login');
-    setUser(null);
     setProfile(null);
   };
 
@@ -78,18 +92,46 @@ function App() {
       const response = await axios.get(`${API_URL}/profile`);
       setProfile(response.data);
     } catch (error) {
-      console.log('No profile found');
+      setProfile(null);
     }
   };
 
+  const openProfileEditor = () => {
+    if (profile) {
+      setProfileForm({
+        college: profile.college ?? '',
+        branch: profile.branch ?? '',
+        gpa: profile.gpa ?? 7.0,
+        college_tier: profile.college_tier ?? 2,
+        current_location: profile.current_location ?? '',
+        home_location: profile.home_location ?? '',
+        distance_from_home: profile.distance_from_home ?? 0,
+        career_goal: profile.career_goal ?? '',
+        internships_count: profile.internships_count ?? 0,
+        projects_count: profile.projects_count ?? 0,
+        wants_to_switch_after: profile.wants_to_switch_after ?? 24,
+        study_time_available: profile.study_time_available ?? 2.0,
+      });
+    }
+    setCurrentView('profile');
+  };
+
   const handleCreateProfile = async () => {
+    const wasExisting = !!profile;
     try {
-      await axios.post(`${API_URL}/profile`, profileForm);
-      alert('Profile created successfully!');
-      fetchProfile();
+      const response = await axios.post(`${API_URL}/profile`, profileForm);
+      setProfile(response.data);
       setCurrentView('dashboard');
+      alert(wasExisting ? 'Profile updated!' : 'Profile created successfully!');
     } catch (error) {
-      alert(error.response?.data?.detail || 'Profile creation failed');
+      const msg = error.response?.data?.detail;
+      alert(
+        typeof msg === 'string'
+          ? msg
+          : Array.isArray(msg)
+            ? msg.map((e) => e.msg || JSON.stringify(e)).join('\n')
+            : error.message || 'Profile save failed'
+      );
     }
   };
 
@@ -217,11 +259,18 @@ function App() {
       <div className="App">
         <nav className="navbar">
           <h2>Career AI</h2>
-          <button onClick={handleLogout}>Logout</button>
+          <div className="nav-links">
+            {profile && (
+              <button type="button" onClick={() => setCurrentView('dashboard')}>
+                Dashboard
+              </button>
+            )}
+            <button type="button" onClick={handleLogout}>Logout</button>
+          </div>
         </nav>
         
         <div className="container">
-          <h2>📝 Complete Your Profile</h2>
+          <h2>{profile ? '📝 Update your profile' : '📝 Complete your profile'}</h2>
           <div className="profile-form">
             <div className="form-row">
               <input
@@ -309,8 +358,8 @@ function App() {
               />
             </div>
 
-            <button onClick={handleCreateProfile} className="btn-primary">
-              Create Profile
+            <button type="button" onClick={handleCreateProfile} className="btn-primary">
+              {profile ? 'Save profile' : 'Create profile'}
             </button>
           </div>
         </div>
@@ -323,10 +372,11 @@ function App() {
       <nav className="navbar">
         <h2>🎓 Career AI</h2>
         <div className="nav-links">
-          <button onClick={() => setCurrentView('dashboard')}>Dashboard</button>
-          <button onClick={() => setCurrentView('offers')}>Add Offer</button>
-          <button onClick={() => setCurrentView('resume')}>Resume</button>
-          <button onClick={handleLogout}>Logout</button>
+          <button type="button" onClick={() => setCurrentView('dashboard')}>Dashboard</button>
+          <button type="button" onClick={openProfileEditor}>Profile</button>
+          <button type="button" onClick={() => setCurrentView('offers')}>Add Offer</button>
+          <button type="button" onClick={() => setCurrentView('resume')}>Resume</button>
+          <button type="button" onClick={handleLogout}>Logout</button>
         </div>
       </nav>
 
