@@ -1,14 +1,15 @@
 from sqlalchemy.orm import Session
 from fastapi import UploadFile, HTTPException
 import PyPDF2
+from PyPDF2.errors import PdfReadError
 import io
 import re
 from typing import List
 from app.db import models
-from datetime import datetime
-import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+
+MAX_RESUME_BYTES = 5 * 1024 * 1024
 
 # Common technical skills
 TECH_SKILLS = [
@@ -25,18 +26,26 @@ TECH_SKILLS = [
 
 async def process_resume(db: Session, user_id: int, file: UploadFile):
     """Process uploaded resume PDF"""
-    if not file.filename.endswith('.pdf'):
+    if not file.filename or not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported")
-    
-    # Read PDF
-    content = await file.read()
-    pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
-    
-    # Extract text
-    text = ""
-    for page in pdf_reader.pages:
-        text += page.extract_text()
-    
+
+    content = await file.read(MAX_RESUME_BYTES + 1)
+    if len(content) > MAX_RESUME_BYTES:
+        raise HTTPException(status_code=413, detail="Resume must be 5 MB or smaller")
+    if not content.startswith(b"%PDF-"):
+        raise HTTPException(status_code=400, detail="The uploaded file is not a valid PDF")
+
+    try:
+        pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
+        text = "\n".join(page.extract_text() or "" for page in pdf_reader.pages).strip()
+    except (PdfReadError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="The uploaded PDF could not be read") from exc
+    if not text:
+        raise HTTPException(
+            status_code=422,
+            detail="No selectable text found; scanned-image PDFs are not supported",
+        )
+
     # Extract skills
     extracted_skills = extract_skills(text)
     
@@ -65,20 +74,21 @@ async def process_resume(db: Session, user_id: int, file: UploadFile):
     return {
         "message": "Resume processed successfully",
         "resume_id": db_resume.id,
+        "filename": db_resume.filename,
         "extracted_skills": extracted_skills,
         "parsed_data": parsed_data
     }
 
 def extract_skills(text: str) -> List[str]:
     """Extract skills from resume text"""
-    text_lower = text.lower()
     found_skills = []
     
     for skill in TECH_SKILLS:
-        if skill in text_lower:
+        pattern = r"(?<![a-z0-9])" + re.escape(skill) + r"(?![a-z0-9])"
+        if re.search(pattern, text, re.IGNORECASE):
             found_skills.append(skill)
     
-    return list(set(found_skills))
+    return sorted(set(found_skills))
 
 def extract_education(text: str) -> dict:
     """Extract education information"""
@@ -199,7 +209,7 @@ def match_skills_with_job(db: Session, user_id: int, job_description: str):
         tfidf_matrix = vectorizer.fit_transform([resume.raw_text, job_description])
         similarity = cosine_similarity(tfidf_matrix[0:1], tfidf_matrix[1:2])[0][0]
         text_similarity = similarity * 100
-    except:
+    except ValueError:
         text_similarity = match_score
     
     # Combined score
@@ -213,6 +223,3 @@ def match_skills_with_job(db: Session, user_id: int, job_description: str):
         "missing_skills": list(set(job_skills) - set(user_skills)),
         "text_similarity": round(text_similarity, 2)
     }
-def parse_resume(file):
-    # resume parsing logic
-    return {"skills": []}

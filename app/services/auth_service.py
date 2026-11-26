@@ -4,12 +4,27 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 import bcrypt
 from datetime import datetime, timedelta
+import os
+import secrets
+import warnings
 from app.db import models
 from app.schemas import schemas
 from app.db.database import get_db
 
 # Configuration
-SECRET_KEY = "arnav"
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    if os.getenv("APP_ENV", "development").lower() == "production":
+        raise RuntimeError("SECRET_KEY must be configured in production")
+    SECRET_KEY = secrets.token_urlsafe(32)
+    warnings.warn(
+        "SECRET_KEY is unset; using a temporary development key. Tokens expire on restart "
+        "and may not work across multiple workers.",
+        RuntimeWarning,
+    )
+elif len(SECRET_KEY) < 32:
+    raise RuntimeError("SECRET_KEY must contain at least 32 characters")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7  # 7 days
 

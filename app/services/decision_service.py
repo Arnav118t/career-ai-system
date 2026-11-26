@@ -52,18 +52,8 @@ def generate_recommendations(db: Session, user_id: int):
         # -----------------------------
         # Skill Match
         # -----------------------------
-        skill_score = 50.0
-
-        if offer.job_description:
-            try:
-                skill_match = resume_service.match_skills_with_job(
-                    db,
-                    user_id,
-                    offer.job_description
-                )
-                skill_score = skill_match.get("skill_match_score", 50.0)
-            except:
-                skill_score = 50.0
+        skill_match = _match_offer_skills(db, user_id, profile, offer)
+        skill_score = skill_match["skill_match_score"]
 
         # -----------------------------
         # Workload Prediction
@@ -184,7 +174,18 @@ def generate_recommendations(db: Session, user_id: int):
             "role": offer.role,
             "ctc": offer.ctc,
             "recommendation_score": round(final_score, 2),
-            "recommendation": recommendation
+            "recommendation": recommendation,
+            "predictions": {
+                "salary": {
+                    "predicted_2yr_ctc": salary_pred["predicted_2yr_ctc"],
+                    "growth_percentage": salary_pred["growth_rate"],
+                },
+                "skill_match": skill_score,
+                "skill_match_details": skill_match,
+                "workload": {"wlb_score": workload_pred["wlb_score"]},
+                "savings": {"yearly": savings["yearly_savings"]},
+                "switch_probability": switch_score,
+            },
         })
 
     db.commit()
@@ -202,6 +203,44 @@ def generate_recommendations(db: Session, user_id: int):
             recommendations,
             profile
         )
+    }
+
+
+def _match_offer_skills(db, user_id, profile, offer):
+    resume = (
+        db.query(models.Resume)
+        .filter(models.Resume.user_id == user_id)
+        .order_by(models.Resume.uploaded_at.desc())
+        .first()
+    )
+    if resume and offer.job_description:
+        result = resume_service.match_skills_with_job(db, user_id, offer.job_description)
+        result["source"] = "resume"
+        return result
+
+    user_skills = {
+        skill.strip().lower()
+        for skill in ((resume.extracted_skills or []) if resume else (profile.current_skills or []))
+        if isinstance(skill, str) and skill.strip()
+    }
+    required_skills = offer.skill_requirements or []
+    if offer.job_description:
+        required_skills = resume_service.extract_skills(offer.job_description)
+    required_skills = {
+        skill.strip().lower()
+        for skill in required_skills
+        if isinstance(skill, str) and skill.strip()
+    }
+    matching = user_skills.intersection(required_skills)
+    score = (len(matching) / len(required_skills) * 100) if required_skills else 0.0
+    return {
+        "skill_match_score": round(score, 2),
+        "user_skills": sorted(user_skills),
+        "job_required_skills": sorted(required_skills),
+        "matching_skills": sorted(matching),
+        "missing_skills": sorted(required_skills - user_skills),
+        "text_similarity": 0.0,
+        "source": "resume" if resume else "profile",
     }
 
 
@@ -274,6 +313,7 @@ def generate_overall_summary(recommendations: List[Dict], profile):
     summary = {
         "total_offers": len(recommendations),
         "average_score": round(avg_score, 2),
+        "average_recommendation_score": round(avg_score, 2),
         "best_offer_company": best["company_name"],
         "best_offer_score": best["recommendation_score"],
         "insights": []

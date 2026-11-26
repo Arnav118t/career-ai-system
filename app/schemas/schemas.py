@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import List, Optional
 from datetime import datetime
 
@@ -9,9 +9,23 @@ class UserCreate(BaseModel):
     password: str
     full_name: str
 
+    @field_validator("password")
+    @classmethod
+    def password_fits_bcrypt(cls, value):
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("password must be at most 72 UTF-8 bytes")
+        return value
+
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("password")
+    @classmethod
+    def password_fits_bcrypt(cls, value):
+        if len(value.encode("utf-8")) > 72:
+            raise ValueError("password must be at most 72 UTF-8 bytes")
+        return value
 
 class UserResponse(BaseModel):
     id: int
@@ -31,11 +45,11 @@ class Token(BaseModel):
 class ProfileCreate(BaseModel):
     college: str
     branch: str
-    gpa: float
-    college_tier: int = 2
+    gpa: float = Field(ge=0, le=10)
+    college_tier: int = Field(default=2, ge=1, le=3)
     current_location: Optional[str] = None
     home_location: Optional[str] = None
-    distance_from_home: float = 0.0
+    distance_from_home: float = Field(default=0.0, ge=0)
     career_goal: Optional[str] = None
     preferred_domains: Optional[List[str]] = []
     preferred_roles: Optional[List[str]] = []
@@ -45,8 +59,8 @@ class ProfileCreate(BaseModel):
     linkedin_url: Optional[str] = None
     github_url: Optional[str] = None
     portfolio_url: Optional[str] = None
-    wants_to_switch_after: Optional[int] = None
-    study_time_available: float = 0.0
+    wants_to_switch_after: Optional[int] = Field(default=None, ge=0)
+    study_time_available: float = Field(default=0.0, ge=0, le=24)
 
 class ProfileResponse(ProfileCreate):
     id: int
@@ -64,11 +78,11 @@ class OfferCreate(BaseModel):
     company_type: str
     role: str
     job_description: Optional[str] = None
-    ctc: float
+    ctc: float = Field(gt=0)
     base_salary: Optional[float] = None
     location: str
     is_mass_recruiter: bool = False
-    bond_period: int = 0
+    bond_period: int = Field(default=0, ge=0)
     skill_requirements: Optional[List[str]] = []
     work_mode: str = "Office"
     deadline: Optional[datetime] = None

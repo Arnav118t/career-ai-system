@@ -6,7 +6,7 @@
 
 **Backend**:
 ```bash
-pip install fastapi uvicorn sqlalchemy pydantic python-jose passlib python-multipart PyPDF2 scikit-learn numpy pandas
+python -m pip install -r requirements.txt
 ```
 
 **Frontend**:
@@ -19,6 +19,7 @@ npm install
 
 ```bash
 # From project root
+$env:SECRET_KEY = python -c "import secrets; print(secrets.token_urlsafe(32))"
 python -m uvicorn app.main:app --reload
 ```
 
@@ -48,12 +49,9 @@ npm start
 
 ---
 
-## Demo Credentials
+## Create an account
 
-For quick testing:
-
-**Email**: demo@student.com
-**Password**: demo123
+There is no pre-created demo account. Select **Register** in the UI, create a user, then log in.
 
 ---
 
@@ -81,15 +79,21 @@ For quick testing:
 
 ---
 
-## Expected Result
+## What to expect
 
-System should recommend:
-✅ **Offer 1 (Google)** with ~90/100 score
-❌ **Offer 2 (Infosys)** with ~45/100 score
+The recommendation screen ranks the offers you entered and shows the score, explanation, and salary/skill/workload/savings estimates. Scores depend on the profile and offer inputs; the sample companies above do not guarantee fixed scores.
 
-Reasons:
-- Google: Higher growth, better skills, good for switching
-- Infosys: Limited growth, mass recruiter patterns
+## Run tests
+
+From the project root:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+## Important model note
+
+This is a decision-support prototype, not an oracle. The satisfaction score comes from the bundled trained model; salary growth, workload, savings, and switching estimates are rule-based. Do not describe every displayed estimate as a trained ML prediction.
 
 ---
 

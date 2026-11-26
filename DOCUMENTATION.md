@@ -66,9 +66,15 @@ An AI-powered system that:
 
 1. **User Registration** → JWT Token → Authenticated Access
 2. **Profile Creation** → Stored in Database
-3. **Resume Upload** → PDF Parsing → Skill Extraction → Embeddings
+3. **Resume Upload** → Authenticated PDF parsing → Skill extraction → Resume stored for that user
 4. **Add Offers** → Stored with metadata
 5. **Get Recommendations** → ML Predictions → Decision Engine → Scored Results
+
+### What is actually machine-learned?
+
+This is a hybrid decision-support prototype, not one end-to-end AI model. The satisfaction score comes from the bundled trained regression model. Salary growth, workload, savings, and switching estimates use explicit rules. Skill matching uses dictionary-based skill extraction, skill overlap, and TF-IDF/cosine similarity when a resume is available. The included data and simplified assumptions are not validated guarantees of hiring or salary outcomes.
+
+The bundled satisfaction model was checked against an 800-row holdout from the 4,000-row project dataset using an 80/20 split (`random_state=42`): MAE 2.765, RMSE 3.280, and R² 0.798. These are internal dataset metrics, not independent real-world validation.
 
 ---
 
@@ -487,27 +493,64 @@ Authorization: Bearer <token>
 
 Response: 200 OK
 {
-  "total_offers": 3,
+  "total_offers": 1,
+  "analysis_summary": {
+    "average_recommendation_score": 76.4,
+    "average_score": 76.4,
+    "insights": ["Some decent opportunities"]
+  },
   "recommendations": [
     {
       "offer_id": 1,
-      "company_name": "Google",
-      "recommendation_score": 92.5,
+      "company_name": "Example Company",
+      "role": "Engineer",
+      "ctc": 12,
+      "recommendation_score": 76.4,
       "recommendation": {
-        "action": "✅ STRONGLY RECOMMEND",
-        "reason": "Excellent fit based on your profile and goals",
-        "key_insights": [...]
+        "action": "RECOMMEND",
+        "reason": "Good opportunity",
+        "key_insights": []
       },
       "predictions": {
-        "salary": {...},
+        "salary": {"predicted_2yr_ctc": 20.5, "growth_percentage": 70.8},
         "skill_match": 85,
-        "workload": {...},
-        "savings": {...}
+        "skill_match_details": {},
+        "workload": {"wlb_score": 4.5},
+        "savings": {"yearly": 720000},
+        "switch_probability": 70
       }
     }
-  ]
+  ],
+  "top_recommendation": {
+    "offer_id": 1,
+    "company_name": "Example Company",
+    "role": "Engineer",
+    "ctc": 12,
+    "recommendation_score": 76.4,
+    "recommendation": {
+      "action": "RECOMMEND",
+      "reason": "Good opportunity",
+      "key_insights": []
+    },
+    "predictions": {
+      "salary": {"predicted_2yr_ctc": 20.5, "growth_percentage": 70.8},
+      "skill_match": 85,
+      "skill_match_details": {},
+      "workload": {"wlb_score": 4.5},
+      "savings": {"yearly": 720000},
+      "switch_probability": 70
+    }
+  }
 }
 ```
+
+Numbers above illustrate the response shape only; actual results depend on the user's data.
+
+### Offers and resume routes
+
+- `GET /api/offers` returns only the authenticated user's offers.
+- `POST /api/offers` creates an offer for the authenticated user.
+- `POST /api/resume/upload` accepts an authenticated, text-based PDF up to 5 MB and stores extracted text and skills for that user. The older `/api/upload-resume` path remains as a hidden compatibility alias.
 
 ---
 

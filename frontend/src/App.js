@@ -148,7 +148,7 @@ function App() {
       const response = await axios.post(`${API_URL}/resume/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
-      alert(`Resume uploaded! Skills extracted: ${response.data.extracted_skills.join(', ')}`);
+      alert(`Resume uploaded! Skills extracted: ${(response.data.extracted_skills || []).join(', ') || 'none detected'}`);
     } catch (error) {
       alert(error.response?.data?.detail || 'Resume upload failed');
     }
